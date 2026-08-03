@@ -7,6 +7,7 @@ import {
 } from "./memory";
 import { generateEmbedding } from "./embeddings";
 import { getWorld } from "../config/worlds";
+import { hasDb } from "../db";
 import type { GameFlags } from "../types";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -65,7 +66,7 @@ export async function chat(params: {
   const [profile, history, queryEmbedding] = await Promise.all([
     getNpcProfile(npcId),
     getConversationHistory(sessionId, npcId, 10),
-    generateEmbedding(playerMessage),
+    hasDb ? generateEmbedding(playerMessage) : Promise.resolve([] as number[]),
   ]);
 
   if (!profile) {

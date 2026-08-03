@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { sessions } from "../db/schema";
 import type { SessionRequest } from "../types";
@@ -11,6 +12,14 @@ router.post("/", async (req, res) => {
 
     if (!player_name || !game) {
       res.status(400).json({ error: "player_name and game are required" });
+      return;
+    }
+
+    // No-DB mode: hand back an ephemeral session id (no persistence).
+    if (!db) {
+      const id = randomUUID();
+      console.log(`[Session] (no-db) ephemeral session=${id} player=${player_name} game=${game}`);
+      res.json({ session_id: id });
       return;
     }
 

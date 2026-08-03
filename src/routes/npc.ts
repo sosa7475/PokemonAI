@@ -71,6 +71,11 @@ router.post("/profile", async (req, res) => {
       return;
     }
 
+    if (!db) {
+      res.status(503).json({ error: "profile upsert requires a database (set DATABASE_URL)" });
+      return;
+    }
+
     await db
       .insert(npcProfiles)
       .values({ npcId: npc_id, game, name, location, personality, backstory })
