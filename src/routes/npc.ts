@@ -5,15 +5,20 @@ import { db } from "../db";
 import { npcProfiles } from "../db/schema";
 import { eq } from "drizzle-orm";
 import type { ChatRequest, NpcProfileRequest } from "../types";
+import { rateLimit, requireAdmin, str, safeFlags, LIMITS } from "../middleware/guard";
 
 const router = Router();
 
-router.post("/chat", async (req, res) => {
+// every call here costs money at OpenAI, so it is the most tightly bounded route
+router.post("/chat", rateLimit(20, 300), async (req, res) => {
   try {
-    const { session_id, npc_id, game, player_message, game_flags } =
-      req.body as ChatRequest;
+    const body = req.body as ChatRequest;
+    const sessionId = str(body.session_id, LIMITS.id);
+    const npcId = str(body.npc_id, LIMITS.id);
+    const game = str(body.game, LIMITS.id);
+    const playerMessage = str(body.player_message, LIMITS.message);
 
-    if (!session_id || !npc_id || !game || !player_message) {
+    if (!sessionId || !npcId || !game || !playerMessage) {
       res
         .status(400)
         .json({ error: "session_id, npc_id, game, and player_message are required" });
@@ -21,14 +26,14 @@ router.post("/chat", async (req, res) => {
     }
 
     const response = await chat({
-      sessionId: session_id,
-      npcId: npc_id,
+      sessionId,
+      npcId,
       game,
-      playerMessage: player_message,
-      gameFlags: game_flags ?? {},
+      playerMessage,
+      gameFlags: safeFlags(body.game_flags),
     });
 
-    res.json({ response, npc_id, session_id });
+    res.json({ response, npc_id: npcId, session_id: sessionId });
   } catch (err) {
     console.error("[NPC Chat] Error:", err);
     const message =
@@ -37,12 +42,12 @@ router.post("/chat", async (req, res) => {
   }
 });
 
-router.get("/:npc_id/history", async (req, res) => {
+router.get("/:npc_id/history", rateLimit(60, 600), async (req, res) => {
   try {
-    const { npc_id } = req.params;
-    const { session_id } = req.query;
+    const npc_id = str(req.params.npc_id, LIMITS.id);
+    const session_id = str(req.query.session_id, LIMITS.id);
 
-    if (!session_id || typeof session_id !== "string") {
+    if (!session_id || !npc_id) {
       res.status(400).json({ error: "session_id query parameter is required" });
       return;
     }
@@ -59,10 +64,16 @@ router.get("/:npc_id/history", async (req, res) => {
   }
 });
 
-router.post("/profile", async (req, res) => {
+// rewriting who an NPC IS is an authoring action, not something a player can do
+router.post("/profile", requireAdmin, async (req, res) => {
   try {
-    const { npc_id, game, name, location, personality, backstory } =
-      req.body as NpcProfileRequest;
+    const body = req.body as NpcProfileRequest;
+    const npc_id = str(body.npc_id, LIMITS.id);
+    const game = str(body.game, LIMITS.id);
+    const name = str(body.name, LIMITS.name);
+    const location = str(body.location, LIMITS.name);
+    const personality = str(body.personality, LIMITS.text);
+    const backstory = str(body.backstory, LIMITS.text);
 
     if (!npc_id || !game || !name || !personality) {
       res
@@ -78,10 +89,10 @@ router.post("/profile", async (req, res) => {
 
     await db
       .insert(npcProfiles)
-      .values({ npcId: npc_id, game, name, location, personality, backstory })
+      .values({ npcId: npc_id, game, name, location: location ?? "", personality, backstory: backstory ?? "" })
       .onConflictDoUpdate({
         target: npcProfiles.npcId,
-        set: { game, name, location, personality, backstory },
+        set: { game, name, location: location ?? "", personality, backstory: backstory ?? "" },
       });
 
     console.log(`[NPC Profile] Upserted npc_id=${npc_id} game=${game}`);

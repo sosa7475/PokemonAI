@@ -3,12 +3,15 @@ import { randomUUID } from "node:crypto";
 import { db } from "../db";
 import { sessions } from "../db/schema";
 import type { SessionRequest } from "../types";
+import { rateLimit, str, LIMITS } from "../middleware/guard";
 
 const router = Router();
 
-router.post("/", async (req, res) => {
+router.post("/", rateLimit(10, 100), async (req, res) => {
   try {
-    const { player_name, game } = req.body as SessionRequest;
+    const body = req.body as SessionRequest;
+    const player_name = str(body.player_name, LIMITS.name);
+    const game = str(body.game, LIMITS.id);
 
     if (!player_name || !game) {
       res.status(400).json({ error: "player_name and game are required" });
