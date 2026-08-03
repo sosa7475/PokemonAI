@@ -1,13 +1,19 @@
-import "dotenv/config";
-import { db } from "./index";
-import { npcProfiles } from "./schema";
-
 /**
- * CryptoBuds NPC roster — sentient buds of the Cannaverse. Seed with `npm run seed:cryptobuds`.
- * Personalities/backstories drawn from the CryptoBuds bible (Boondocks x Ted, adult, streetwise).
- * Later phase: generate a persona per NFT from its traits (strain + accessories = personality).
+ * Canonical NPC personas — single source of truth for seeds AND the DB-less fallback.
+ * When DATABASE_URL is unset, the API serves these directly (NPCs still talk via GPT,
+ * persistent memory is just disabled until a Postgres is attached).
  */
-const profiles = [
+export interface NpcProfile {
+  npcId: string;
+  game: string;
+  name: string;
+  location: string;
+  personality: string;
+  backstory: string;
+}
+
+export const NPC_PROFILES: NpcProfile[] = [
+  // ---- CryptoBuds (the Cannaverse) ----
   {
     npcId: "sour_d",
     game: "cryptobuds",
@@ -44,7 +50,7 @@ const profiles = [
     name: "Old Malawi",
     location: "The Roots District",
     personality:
-      "A wise, long-winded elder. Spiritual, patient, endlessly nostalgic — every answer becomes a story about 'back in my day.' Warm to the young, disgusted by crypto-degens and synthetic strains. Speaks slow, with weight.",
+      "A wise, long-winded elder. Spiritual, patient, endlessly nostalgic — every answer becomes a story about 'back in my day.' Warm to the young, disgusted by crypto-degens and synthetic strains. Speaks slow, with weight. He gives new growers their first bud.",
     backstory:
       "A Malawi Gold landrace from the old Roots District, one of the original strains before all the crossbreeding and lab-grown 'designer' buds. He remembers when the Cannaverse was simpler and the tribes had honor. He knows old truths about where buds come from — but the young ones never sit still long enough to hear them.",
   },
@@ -58,32 +64,20 @@ const profiles = [
     backstory:
       "Runs the bar at the Bud Lounge, the spot every bud comes home to — green velvet, warm light, good company. Deals get made and stories get told across his bar, so he hears everything. He knows more about what's really going on in the Cannaverse than anyone, but he keeps it behind a smile and a fresh pour.",
   },
+
+  // ---- Pokemon Emerald (legacy demo) ----
+  {
+    npcId: "petalburg_old_man",
+    game: "emerald",
+    name: "Old Man Gerald",
+    location: "Petalburg City",
+    personality:
+      "A wise, gentle elderly man who sits on a bench near the Petalburg Gym. He speaks in a calm, reflective tone and loves sharing stories about the old days of Pokemon training. He is encouraging but honest.",
+    backstory:
+      "Gerald was once a Pokemon trainer who challenged the Hoenn League decades ago but never made it past the Elite Four. He retired to Petalburg and now watches young trainers pass through, offering advice based on their progress.",
+  },
 ];
 
-async function seed() {
-  if (!db) { console.error("[Seed:CryptoBuds] DATABASE_URL required to seed."); process.exit(1); }
-  console.log("[Seed:CryptoBuds] Inserting Cannaverse NPC profiles...");
-  for (const profile of profiles) {
-    await db
-      .insert(npcProfiles)
-      .values(profile)
-      .onConflictDoUpdate({
-        target: npcProfiles.npcId,
-        set: {
-          game: profile.game,
-          name: profile.name,
-          location: profile.location,
-          personality: profile.personality,
-          backstory: profile.backstory,
-        },
-      });
-    console.log(`[Seed:CryptoBuds] Upserted: ${profile.npcId} (${profile.name})`);
-  }
-  console.log("[Seed:CryptoBuds] Done — welcome to the Cannaverse.");
-  process.exit(0);
-}
-
-seed().catch((err) => {
-  console.error("[Seed:CryptoBuds] Failed:", err);
-  process.exit(1);
-});
+export const NPC_PROFILE_MAP: Record<string, NpcProfile> = Object.fromEntries(
+  NPC_PROFILES.map((p) => [p.npcId, p])
+);

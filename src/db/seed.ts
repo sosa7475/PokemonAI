@@ -36,6 +36,7 @@ const profiles = [
 ];
 
 async function seed() {
+  if (!db) { console.error("[Seed] DATABASE_URL required to seed."); process.exit(1); }
   console.log("[Seed] Inserting NPC profiles...");
 
   for (const profile of profiles) {

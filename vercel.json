@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "buildCommand": "echo no build step needed",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+}
