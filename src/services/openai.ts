@@ -6,36 +6,33 @@ import {
   saveMessage,
 } from "./memory";
 import { generateEmbedding } from "./embeddings";
+import { getWorld } from "../config/worlds";
 import type { GameFlags } from "../types";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function buildSystemPrompt(
   profile: { name: string; location: string; personality: string; backstory: string },
+  game: string,
   gameFlags: GameFlags,
   memories: Array<{ content: string; role: string; similarity: number }>
 ): string {
-  const badgeNames = [
-    "Stone", "Knuckle", "Dynamo", "Heat",
-    "Balance", "Feather", "Mind", "Rain",
-  ];
-  const badgeCount = gameFlags.badges ?? 0;
-  const earnedBadges = badgeNames
-    .filter((_, i) => badgeCount > i)
-    .join(", ");
+  const world = getWorld(game);
+  const count = gameFlags.badges ?? 0;
+  const earned = world.progressionNames.filter((_, i) => count > i).join(", ");
 
-  let prompt = `You are ${profile.name}, a Pokemon NPC located in ${profile.location}.
+  let prompt = `You are ${profile.name}, ${world.npcRole}. You are located in ${profile.location}.
 
 PERSONALITY: ${profile.personality}
 
 BACKSTORY: ${profile.backstory}
 
-CURRENT GAME STATE:
-- Badges earned: ${badgeCount}${earnedBadges ? ` (${earnedBadges})` : ""}
-- Current town: ${gameFlags.current_town ?? "unknown"}`;
+CURRENT STATE:
+- ${world.progressionLabel}: ${count}${earned ? ` (${earned})` : ""}
+- Current area: ${gameFlags.current_town ?? "unknown"}`;
 
-  if (gameFlags.has_surf) prompt += "\n- Player has Surf";
-  if (gameFlags.has_fly) prompt += "\n- Player has Fly";
+  if (gameFlags.has_surf) prompt += "\n- Player can Surf";
+  if (gameFlags.has_fly) prompt += "\n- Player can Fly";
 
   if (memories.length > 0) {
     prompt += "\n\nRELEVANT PAST MEMORIES:";
@@ -44,14 +41,12 @@ CURRENT GAME STATE:
     }
   }
 
+  prompt += "\n\nRULES:";
+  for (const rule of world.worldRules) prompt += `\n- ${rule}`;
   prompt += `
-
-RULES:
-- Stay fully in character as a Pokemon world NPC at all times
-- Keep your response under 200 characters to fit the GBA dialogue box
-- Never break the fourth wall or mention AI
-- React to the player's badge count and game progress naturally
-- If you have past memories of this player, reference them subtly`;
+- Keep your response under ${world.charLimit} characters to fit the dialogue box.
+- Never break the fourth wall or mention AI.
+- If you have past memories of this player, reference them subtly.`;
 
   return prompt;
 }
@@ -80,7 +75,7 @@ export async function chat(params: {
   // Search for relevant past memories using the embedding
   const memories = await searchRelevantMemories(npcId, queryEmbedding, 3);
 
-  const systemPrompt = buildSystemPrompt(profile, gameFlags, memories);
+  const systemPrompt = buildSystemPrompt(profile, game, gameFlags, memories);
 
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
@@ -100,9 +95,10 @@ export async function chat(params: {
 
   let response = completion.choices[0].message.content ?? "...";
 
-  // Enforce 200 character limit
-  if (response.length > 200) {
-    response = response.slice(0, 197) + "...";
+  // Enforce the world's dialogue-box character limit
+  const limit = getWorld(game).charLimit;
+  if (response.length > limit) {
+    response = response.slice(0, limit - 3) + "...";
   }
 
   // Save both messages in parallel
