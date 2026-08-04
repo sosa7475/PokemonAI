@@ -36,6 +36,9 @@ export const EVENTS = new Set([
   "stuck_escape",    // they pressed the "I'm stuck" button — a bug signal
   "account_made",
   "wallet_linked",
+  "crossbreed",      // props: { grade, stepped }
+  "sesh_trade",
+  "sesh_battle",
   "heartbeat",       // every 60s of play; props: { minutes } — session length
   "finished",        // beat the Kingpin
 ]);
