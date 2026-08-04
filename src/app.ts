@@ -3,6 +3,7 @@ import "dotenv/config";
 import sessionRoutes from "./routes/session";
 import npcRoutes from "./routes/npc";
 import accountRoutes from "./routes/account";
+import metricsRoutes from "./routes/metrics";
 import { hasDb } from "./db";
 
 const app = express();
@@ -31,5 +32,6 @@ app.get("/health", (_req, res) => res.json({ status: "ok", memory: hasDb ? "on" 
 app.use("/session", sessionRoutes);
 app.use("/npc", npcRoutes);
 app.use("/account", accountRoutes);
+app.use("/metrics", metricsRoutes);
 
 export default app;
