@@ -19,7 +19,7 @@ app.use((req, res, next) => {
   if (!allow && req.method === "OPTIONS") { res.sendStatus(403); return; }
   res.header("Vary", "Origin");
   res.header("Access-Control-Allow-Origin", allow || ALLOWED[0]);
-  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
