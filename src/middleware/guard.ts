@@ -11,7 +11,16 @@
  * start. That is deliberately not the only defence: the input caps and max_tokens bound
  * the cost of any single request no matter how the limiter is bypassed.
  */
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction, RequestHandler } from "express";
+
+/**
+ * Express 4 does not catch a rejected promise from a route handler. The rejection goes
+ * unhandled, the serverless function dies without writing a response, and the caller's
+ * connection simply hangs until it times out — no status, no log line, nothing to debug.
+ * Every async handler goes through this so a thrown error becomes a 500 instead.
+ */
+export const guarded = (fn: RequestHandler): RequestHandler =>
+  (req, res, next) => { void Promise.resolve(fn(req, res, next)).catch(next); };
 
 export const LIMITS = {
   message: 500,     // a dialogue box holds far less than this

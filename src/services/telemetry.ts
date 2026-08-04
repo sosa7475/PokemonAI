@@ -154,7 +154,7 @@ export async function stats(): Promise<Stats | null> {
   ];
 
   const daily = await sql`
-    select to_char(d.day, 'YYYY-MM-DD') as day,
+    select to_char(d.day, 'YYYY-MM-DD') as "day",
            count(distinct e.anon_id)::int as players,
            count(distinct e.anon_id) filter (where e.name = 'account_made')::int as signups
     from generate_series(current_date - interval '13 days', current_date, interval '1 day') as d(day)

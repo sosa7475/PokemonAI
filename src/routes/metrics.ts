@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request } from "express";
-import { rateLimit, str, requireAdmin } from "../middleware/guard";
+import { rateLimit, str, requireAdmin, guarded } from "../middleware/guard";
 import { whoAmI } from "../services/accounts";
 import { recordEvents, recordFeedback, stats, setFeedbackStatus, telemetryReady } from "../services/telemetry";
 import { dashboardHtml } from "./dashboard";
@@ -20,7 +20,7 @@ const anonOf = (req: Request): string | null => str((req.body as { anon?: unknow
  * session is a handful of calls, and a player who somehow exceeds it just loses stats,
  * never gameplay.
  */
-router.post("/events", rateLimit(30, 400), async (req, res) => {
+router.post("/events", rateLimit(30, 400), guarded(async (req, res) => {
   if (!telemetryReady) { res.json({ ok: true, stored: 0 }); return; }
   const anon = anonOf(req);
   if (!anon) { res.status(400).json({ error: "Missing id." }); return; }
@@ -28,9 +28,9 @@ router.post("/events", rateLimit(30, 400), async (req, res) => {
   const body = req.body as { events?: unknown };
   const stored = await recordEvents(anon, me?.id ?? null, Array.isArray(body.events) ? body.events : []);
   res.json({ ok: true, stored });
-});
+}));
 
-router.post("/feedback", rateLimit(5, 30), async (req, res) => {
+router.post("/feedback", rateLimit(5, 30), guarded(async (req, res) => {
   const anon = anonOf(req);
   const b = req.body as { kind?: unknown; message?: unknown; context?: unknown };
   const message = str(b.message, 2000);
@@ -39,21 +39,21 @@ router.post("/feedback", rateLimit(5, 30), async (req, res) => {
   await recordFeedback(anon ?? "unknown", me?.id ?? null,
     b.kind === "bug" ? "bug" : "idea", message, b.context);
   res.json({ ok: true });
-});
+}));
 
 /* ── operator only ───────────────────────────────────────────────── */
-router.get("/admin/stats", requireAdmin, async (_req, res) => {
+router.get("/admin/stats", requireAdmin, guarded(async (_req, res) => {
   const s = await stats();
   if (!s) { res.status(503).json({ error: "No database configured." }); return; }
   res.json(s);
-});
+}));
 
-router.post("/admin/feedback/:id", requireAdmin, async (req, res) => {
+router.post("/admin/feedback/:id", requireAdmin, guarded(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Bad id." }); return; }
   await setFeedbackStatus(id, String((req.body as { status?: unknown }).status ?? "new"));
   res.json({ ok: true });
-});
+}));
 
 /**
  * The dashboard page itself is public; every number on it arrives through the admin

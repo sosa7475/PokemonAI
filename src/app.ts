@@ -34,4 +34,10 @@ app.use("/npc", npcRoutes);
 app.use("/account", accountRoutes);
 app.use("/metrics", metricsRoutes);
 
+/** Last line of defence: anything that escapes a route becomes a 500, never a hung socket. */
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("[unhandled]", err);
+  if (!res.headersSent) res.status(500).json({ error: "Something broke on our side." });
+});
+
 export default app;
