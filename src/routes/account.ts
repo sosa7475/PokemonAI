@@ -81,7 +81,7 @@ router.post("/wallet/nonce", rateLimit(20, 200), async (req, res) => {
   const me = await whoAmI(bearer(req));
   if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
   const addr = str((req.body as { address?: unknown }).address, 60);
-  const nonce = addr ? issueNonce(addr) : null;
+  const nonce = addr ? await issueNonce(me.id, addr) : null;
   if (!nonce || !addr) { res.status(400).json({ error: "That isn't a valid address." }); return; }
   res.json({ nonce, message: messageFor(addr, nonce) });
 });

@@ -42,17 +42,29 @@ const CHAINS: Chain[] = [
   // { id: "base", contract: "0x…", rpcs: ["https://mainnet.base.org", "https://base.publicnode.com"] },
 ];
 
-/* ── the nonce a wallet has to sign ─────────────────────────────── */
-const nonces = new Map<string, { nonce: string; at: number }>();
-const NONCE_TTL = 10 * 60 * 1000;
+/* ── the nonce a wallet has to sign ─────────────────────────────────
+ * In the database rather than in memory, and not as a nicety: this runs on serverless,
+ * so the request that issues a nonce and the request that redeems it routinely land on
+ * different instances. An in-memory map made linking work only when the two happened to
+ * share a warm lambda — which is to say, intermittently, and worse under low traffic.
+ *
+ * It's also bound to the account that asked for it, so one player can't have a nonce
+ * issued and another redeem it. */
+const NONCE_MINUTES = 10;
 
-export function issueNonce(address: string): string | null {
-  if (!isAddress(address)) return null;
+export async function issueNonce(accountId: string, address: string): Promise<string | null> {
+  if (!sql || !isAddress(address)) return null;
+  const key = getAddress(address).toLowerCase();
   const nonce = randomBytes(16).toString("hex");
-  nonces.set(getAddress(address).toLowerCase(), { nonce, at: Date.now() });
-  // opportunistic sweep so the map can't grow forever
-  const cutoff = Date.now() - NONCE_TTL;
-  for (const [k, v] of nonces) if (v.at < cutoff) nonces.delete(k);
+  await sql`
+    insert into cb_wallet_nonces (address, nonce, account_id, created_at)
+    values (${key}, ${nonce}, ${accountId}, now())
+    on conflict (address) do update
+      set nonce = excluded.nonce, account_id = excluded.account_id, created_at = now()`;
+  // opportunistic sweep so spent and abandoned nonces don't accumulate
+  await sql`
+    delete from cb_wallet_nonces
+    where created_at < now() - make_interval(mins => ${NONCE_MINUTES})`;
   return nonce;
 }
 
@@ -130,10 +142,13 @@ export async function linkWallet(accountId: string, address: string, signature: 
   if (!isAddress(address)) return { ok: false, why: "That isn't a valid address." };
   const key = getAddress(address).toLowerCase();
 
-  const rec = nonces.get(key);
-  if (!rec || Date.now() - rec.at > NONCE_TTL) {
-    return { ok: false, why: "That request expired. Try connecting again." };
-  }
+  const rows = await sql`
+    select nonce from cb_wallet_nonces
+    where address = ${key} and account_id = ${accountId}
+      and created_at > now() - make_interval(mins => ${NONCE_MINUTES})
+    limit 1`;
+  const issued = rows[0]?.nonce as string | undefined;
+  if (!issued) return { ok: false, why: "That request expired. Try connecting again." };
   if (typeof signature !== "string" || signature.length > 400) {
     return { ok: false, why: "Bad signature." };
   }
@@ -142,13 +157,13 @@ export async function linkWallet(accountId: string, address: string, signature: 
   try {
     valid = await verifyMessage({
       address: getAddress(address),
-      message: messageFor(address, rec.nonce),
+      message: messageFor(address, issued),
       signature: signature as `0x${string}`,
     });
   } catch { valid = false; }
   if (!valid) return { ok: false, why: "That signature doesn't match the address." };
 
-  nonces.delete(key);   // single use
+  await sql`delete from cb_wallet_nonces where address = ${key}`;   // single use
 
   // one wallet, one account — otherwise two players could claim the same buds
   const taken = await sql`
