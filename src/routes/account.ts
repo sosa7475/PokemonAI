@@ -17,9 +17,12 @@ const bearer = (req: Request): string | undefined => {
 
 router.get("/status", (_req, res) => res.json({ accounts: accountsReady }));
 
-// Registration is the expensive one (a scrypt hash) and the one worth abusing, so it's
-// the tightest limit on the service.
-router.post("/register", rateLimit(4, 20), guarded(async (req, res) => {
+// Registration is the expensive one (a scrypt hash) and the one worth abusing, so it stays
+// the tightest limit on the service — but the limiter keys on IP, and a group of friends
+// signing up together from one house or one office is a single IP. 4/min turned that into
+// "the game is broken" for everyone after the first four. A scrypt hash is ~100ms, so this
+// is still nowhere near a cost anyone can exploit.
+router.post("/register", rateLimit(10, 50), guarded(async (req, res) => {
   try {
     const body = req.body as { username?: unknown; password?: unknown };
     const u = str(body.username, LIMITS.name);

@@ -103,10 +103,10 @@ export async function stats(): Promise<Stats | null> {
 
   const [players] = await sql`
     select
-      count(distinct anon_id)::int                                            as total,
-      count(distinct account_id)::int                                         as accounts,
-      count(distinct anon_id)::int filter (where at > now() - interval '1 day')  as today,
-      count(distinct anon_id)::int filter (where at > now() - interval '7 days') as week
+      count(distinct anon_id)::int                                                   as total,
+      count(distinct account_id)::int                                                as accounts,
+      (count(distinct anon_id) filter (where at > now() - interval '1 day'))::int    as today,
+      (count(distinct anon_id) filter (where at > now() - interval '7 days'))::int   as week
     from cb_events` as { total: number; accounts: number; today: number; week: number }[];
 
   /* Retention the honest way: of the people whose FIRST day was at least N days ago, how
@@ -117,9 +117,9 @@ export async function stats(): Promise<Stats | null> {
       select anon_id, min(at) as first_at, max(at) as last_at from cb_events group by anon_id
     )
     select
-      count(*)::int filter (where first_at < now() - interval '1 day')                                as cohort,
-      count(*)::int filter (where first_at < now() - interval '1 day'  and last_at > first_at + interval '1 day')  as d1,
-      count(*)::int filter (where first_at < now() - interval '7 days' and last_at > first_at + interval '7 days') as d7
+      (count(*) filter (where first_at < now() - interval '1 day'))::int                                as cohort,
+      (count(*) filter (where first_at < now() - interval '1 day'  and last_at > first_at + interval '1 day'))::int  as d1,
+      (count(*) filter (where first_at < now() - interval '7 days' and last_at > first_at + interval '7 days'))::int as d7
     from first_seen` as { cohort: number; d1: number; d7: number }[];
 
   // Session length comes off the heartbeat: the highest minute count a player ever reached.
@@ -130,8 +130,8 @@ export async function stats(): Promise<Stats | null> {
     )
     select
       coalesce(percentile_cont(0.5) within group (order by mins), 0)::int as median_minutes,
-      count(*)::int filter (where mins >= 10) as over_10_min,
-      count(*)::int filter (where mins >= 30) as over_30_min
+      (count(*) filter (where mins >= 10))::int as over_10_min,
+      (count(*) filter (where mins >= 30))::int as over_30_min
     from best` as { median_minutes: number; over_10_min: number; over_30_min: number }[];
 
   const funnelRows = await sql`
