@@ -20,11 +20,26 @@ import { neon } from "@neondatabase/serverless";
 const url = process.env.ACCOUNTS_DATABASE_URL || process.env.DATABASE_URL;
 const sql = url ? neon(url) : null;
 
-const CONTRACT = "0xc866f81200f84f46e243b1e2bec7e2dd03052aef";
-const RPCS = [
-  "https://polygon-bor-rpc.publicnode.com",
-  "https://polygon.llamarpc.com",
-  "https://rpc.ankr.com/polygon",
+/**
+ * Chains are a list, not a constant, because a relaunch on Base or Ethereum shouldn't
+ * strand the people who already hold. Signatures are EVM-wide and the reads are plain
+ * ERC721Enumerable, so adding a chain here is the whole migration: every entry is checked
+ * and the holdings merge, tagged by chain. Drop an entry to retire a deployment.
+ */
+type Chain = { id: string; contract: string; rpcs: string[] };
+
+const CHAINS: Chain[] = [
+  {
+    id: "polygon",
+    contract: "0xc866f81200f84f46e243b1e2bec7e2dd03052aef",
+    rpcs: [
+      "https://polygon-bor-rpc.publicnode.com",
+      "https://polygon.llamarpc.com",
+      "https://rpc.ankr.com/polygon",
+    ],
+  },
+  // A Base or Ethereum redeploy slots in here — same shape, nothing else changes:
+  // { id: "base", contract: "0x…", rpcs: ["https://mainnet.base.org", "https://base.publicnode.com"] },
 ];
 
 /* ── the nonce a wallet has to sign ─────────────────────────────── */
@@ -54,15 +69,15 @@ export function messageFor(address: string, nonce: string): string {
 }
 
 /* ── chain reads ────────────────────────────────────────────────── */
-async function ethCall(data: string): Promise<string | null> {
-  for (const rpc of RPCS) {
+async function ethCall(chain: Chain, data: string): Promise<string | null> {
+  for (const rpc of chain.rpcs) {
     try {
       const r = await fetch(rpc, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0", id: 1, method: "eth_call",
-          params: [{ to: CONTRACT, data }, "latest"],
+          params: [{ to: chain.contract, data }, "latest"],
         }),
         signal: AbortSignal.timeout(9000),
       });
@@ -75,10 +90,10 @@ async function ethCall(data: string): Promise<string | null> {
 
 const pad = (n: string) => n.replace(/^0x/, "").padStart(64, "0");
 
-/** Every token id the address holds. ERC721Enumerable, so this is exact, not an index. */
-export async function ownedTokens(address: string, cap = 300): Promise<number[]> {
+/** Every token id the address holds on one chain. ERC721Enumerable, so exact, not an index. */
+async function tokensOnChain(chain: Chain, address: string, cap: number): Promise<number[]> {
   const addr = getAddress(address).slice(2).toLowerCase();
-  const balHex = await ethCall("0x70a08231" + pad(addr));
+  const balHex = await ethCall(chain, "0x70a08231" + pad(addr));
   if (!balHex) return [];
   const balance = Math.min(parseInt(balHex, 16) || 0, cap);
   const out: number[] = [];
@@ -86,11 +101,23 @@ export async function ownedTokens(address: string, cap = 300): Promise<number[]>
   for (let i = 0; i < balance; i += 12) {
     const batch = await Promise.all(
       Array.from({ length: Math.min(12, balance - i) }, (_, k) =>
-        ethCall("0x2f745c59" + pad(addr) + pad((i + k).toString(16))))
+        ethCall(chain, "0x2f745c59" + pad(addr) + pad((i + k).toString(16))))
     );
     for (const hex of batch) if (hex) out.push(parseInt(hex, 16));
   }
   return out;
+}
+
+/**
+ * Holdings across every configured chain, merged.
+ *
+ * Deduped by token id on purpose: bud #16 is bud #16 whichever contract minted it. A
+ * relaunch moves the same 4,200 buds to a new chain, so holding it in two places is one
+ * bud in the game, not two.
+ */
+export async function ownedTokens(address: string, cap = 300): Promise<number[]> {
+  const per = await Promise.all(CHAINS.map((c) => tokensOnChain(c, address, cap).catch(() => [])));
+  return [...new Set(per.flat())].sort((a, b) => a - b);
 }
 
 /* ── link / unlink ──────────────────────────────────────────────── */
