@@ -4,6 +4,9 @@ import { rateLimit, str, LIMITS } from "../middleware/guard";
 import {
   register, login, logout, whoAmI, putSave, getSave, accountsReady,
 } from "../services/accounts";
+import {
+  issueNonce, messageFor, linkWallet, unlinkWallet, refreshWallet, walletOf,
+} from "../services/wallet";
 
 const router = Router();
 
@@ -71,6 +74,49 @@ router.put("/save", rateLimit(30, 400), async (req, res) => {
   const out = await putSave(me.id, (req.body as { blob?: unknown }).blob);
   if (!out.ok) { res.status(400).json({ error: out.why }); return; }
   res.json({ ok: true });
+});
+
+/* ── wallet: optional, read-only, never custodial ───────────────── */
+router.post("/wallet/nonce", rateLimit(20, 200), async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  const addr = str((req.body as { address?: unknown }).address, 60);
+  const nonce = addr ? issueNonce(addr) : null;
+  if (!nonce || !addr) { res.status(400).json({ error: "That isn't a valid address." }); return; }
+  res.json({ nonce, message: messageFor(addr, nonce) });
+});
+
+router.post("/wallet/link", rateLimit(10, 80), async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  const b = req.body as { address?: unknown; signature?: unknown };
+  const addr = str(b.address, 60);
+  const sig = typeof b.signature === "string" ? b.signature : "";
+  if (!addr) { res.status(400).json({ error: "That isn't a valid address." }); return; }
+  const out = await linkWallet(me.id, addr, sig);
+  if (!out.ok) { res.status(400).json({ error: out.why }); return; }
+  res.json({ address: out.address, tokens: out.tokens });
+});
+
+router.post("/wallet/refresh", rateLimit(10, 80), async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  const out = await refreshWallet(me.id);
+  if (!out.ok) { res.status(400).json({ error: out.why }); return; }
+  res.json({ address: out.address, tokens: out.tokens });
+});
+
+router.post("/wallet/unlink", rateLimit(10, 80), async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  await unlinkWallet(me.id);
+  res.json({ ok: true });
+});
+
+router.get("/wallet", rateLimit(40, 400), async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  res.json(await walletOf(me.id));
 });
 
 export default router;
