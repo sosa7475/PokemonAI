@@ -6,11 +6,11 @@
 You are building **CryptoBuds: The Cannaverse** — a Pokémon-Emerald-style creature-collector RPG that runs in the browser. Everything you need already exists: a complete design spec, ready game data, art direction, and a **live AI-NPC API**. Your job is to build the **v1 first-playable** game in one shot.
 
 ## READ THESE FIRST (they are your source of truth)
-- **`~/agility/repos/PokemonAI/CRYPTOBUDS_GAME_SPEC.md`** — the complete master spec (world, systems, story, architecture). Follow it.
-- **`~/agility/repos/PokemonAI/game-data/buds.data.json`** — the 383 catchable buds (dex, name, strain, **family/type**, **stats**, learnset, `sprite` = IPFS URL of the NFT art).
-- **`~/agility/repos/PokemonAI/game-data/types.data.json`** — the 7 strain-family type-effectiveness chart.
-- **`~/agility/repos/PokemonAI/game-data/moves.data.json`** — 30 moves (power/accuracy/category/effect).
-- **`~/agility/repos/PokemonAI/game-data/art/overworld-tileset-ref.png`** — top-down CryptoBuds art direction (weed-plant "trees," dirt paths, dispensary, water, grass). Match this style.
+- **`~/agility/repos/cryptobuds-api/CRYPTOBUDS_GAME_SPEC.md`** — the complete master spec (world, systems, story, architecture). Follow it.
+- **`~/agility/repos/cryptobuds-api/game-data/buds.data.json`** — the 383 catchable buds (dex, name, strain, **family/type**, **stats**, learnset, `sprite` = IPFS URL of the NFT art).
+- **`~/agility/repos/cryptobuds-api/game-data/types.data.json`** — the 7 strain-family type-effectiveness chart.
+- **`~/agility/repos/cryptobuds-api/game-data/moves.data.json`** — 30 moves (power/accuracy/category/effect).
+- **`~/agility/repos/cryptobuds-api/game-data/art/overworld-tileset-ref.png`** — top-down CryptoBuds art direction (weed-plant "trees," dirt paths, dispensary, water, grass). Match this style.
 
 ## TECH (locked)
 - **Vite + Phaser 3 + TypeScript.** Scaffold a fresh app at **`~/agility/cryptobuds/adventure/`**. Deploy to Vercel when done; it will be linked from the site at `/adventure`.

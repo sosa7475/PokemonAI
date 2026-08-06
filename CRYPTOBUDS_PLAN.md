@@ -35,4 +35,4 @@ A GBA/Emerald ROM holds **~386 species max** — it physically cannot hold 4,200
 ## Open questions for Sam
 - **DB:** spin up a fresh Neon DB, or reuse an AgilityOS Postgres?
 - **Frontend track:** ROM-hack prototype first (feel it), or go straight to the web engine (the product)? (Rec: quick prototype, then web.)
-- **Push:** OK to push this branch to `github.com/sosa7475/PokemonAI`?
+- **Push:** OK to push this branch to `github.com/sosa7475/cryptobuds-api`?
