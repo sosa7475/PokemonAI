@@ -68,7 +68,29 @@ export interface Account { id: string; username: string }
 /** Deliberately vague, and the same for every failure mode. */
 export const BAD_LOGIN = "That username and password don't match.";
 
-export async function register(username: string, password: string): Promise<
+/**
+ * Email is what makes an account recoverable.
+ *
+ * Until now a run was tied to a username and a password and nothing else, so a player who
+ * forgot either had lost twenty hours with no way back — and the only person who could help
+ * was Sam, by hand, with no way to prove the account was theirs. It is stored lowercased and
+ * trimmed as its own unique key, so Sam@x.com and sam@x.com cannot become two accounts
+ * racing for the same inbox.
+ *
+ * Deliberately NOT verified at sign-up: a verification round-trip in front of a first-time
+ * player is exactly the friction the sign-up gate was designed to avoid. It is recorded so
+ * recovery is possible later; proving it belongs to them is a problem for the day recovery
+ * is actually built.
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]{2,}$/;
+export function checkEmail(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const e = v.trim().toLowerCase();
+  if (e.length < 6 || e.length > 254 || !EMAIL_RE.test(e)) return null;
+  return e;
+}
+
+export async function register(username: string, password: string, email?: string): Promise<
   { ok: true; token: string; account: Account } | { ok: false; why: string }
 > {
   if (!sql) return { ok: false, why: "Accounts aren't set up on this server." };
@@ -77,13 +99,20 @@ export async function register(username: string, password: string): Promise<
   const pw = checkPassword(password);
   if (!pw) return { ok: false, why: "Passwords need to be at least 8 characters." };
 
+  const mail = email === undefined ? null : checkEmail(email);
+  if (email !== undefined && !mail) return { ok: false, why: "That email doesn't look right." };
+
   const taken = await sql`select 1 from cb_accounts where username_key = ${key} limit 1`;
   if (taken.length) return { ok: false, why: "That name's taken." };
+  if (mail) {
+    const dupe = await sql`select 1 from cb_accounts where email = ${mail} limit 1`;
+    if (dupe.length) return { ok: false, why: "There's already an account on that email." };
+  }
 
   const hash = await hashPassword(pw);
   const rows = await sql`
-    insert into cb_accounts (username_key, username, pw_hash)
-    values (${key}, ${username.trim()}, ${hash})
+    insert into cb_accounts (username_key, username, pw_hash, email)
+    values (${key}, ${username.trim()}, ${hash}, ${mail})
     returning id, username`;
   const acct = { id: rows[0].id as string, username: rows[0].username as string };
   return { ok: true, token: await startSession(acct.id), account: acct };
@@ -93,14 +122,21 @@ export async function login(username: string, password: string): Promise<
   { ok: true; token: string; account: Account } | { ok: false; why: string }
 > {
   if (!sql) return { ok: false, why: "Accounts aren't set up on this server." };
+  // Whichever they typed. Somebody signing in on a new phone six months later remembers the
+  // address they used far more reliably than the handle they picked, so both are accepted.
+  const mail = checkEmail(username);
   const key = checkUsername(username);
   const pw = checkPassword(password);
-  // Still do a hash even on malformed input, so a bad username isn't measurably faster
-  if (!key || !pw) { await hashPassword("timing-equaliser"); return { ok: false, why: BAD_LOGIN }; }
+  // Still do a hash even on malformed input, so a bad identifier isn't measurably faster
+  if ((!key && !mail) || !pw) { await hashPassword("timing-equaliser"); return { ok: false, why: BAD_LOGIN }; }
 
-  const rows = await sql`
-    select id, username, pw_hash, locked_until, failed_logins
-    from cb_accounts where username_key = ${key} limit 1`;
+  const rows = mail
+    ? await sql`
+        select id, username, pw_hash, locked_until, failed_logins
+        from cb_accounts where email = ${mail} limit 1`
+    : await sql`
+        select id, username, pw_hash, locked_until, failed_logins
+        from cb_accounts where username_key = ${key} limit 1`;
   if (!rows.length) { await hashPassword("timing-equaliser"); return { ok: false, why: BAD_LOGIN }; }
 
   const row = rows[0] as { id: string; username: string; pw_hash: string; locked_until: string | null; failed_logins: number };

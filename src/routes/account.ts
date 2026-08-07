@@ -25,11 +25,13 @@ router.get("/status", (_req, res) => res.json({ accounts: accountsReady }));
 // is still nowhere near a cost anyone can exploit.
 router.post("/register", rateLimit(10, 50), guarded(async (req, res) => {
   try {
-    const body = req.body as { username?: unknown; password?: unknown };
+    const body = req.body as { username?: unknown; password?: unknown; email?: unknown };
     const u = str(body.username, LIMITS.name);
     const p = typeof body.password === "string" ? body.password : "";
     if (!u) { res.status(400).json({ error: "Pick a username." }); return; }
-    const out = await register(u, p);
+    // Optional on the wire so existing clients keep working, but the game asks for it.
+    const e = body.email === undefined || body.email === "" ? undefined : str(body.email, 254) ?? "";
+    const out = await register(u, p, e);
     if (!out.ok) { res.status(400).json({ error: out.why }); return; }
     res.json({ token: out.token, account: out.account });
   } catch (err) {
