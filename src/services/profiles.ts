@@ -9,8 +9,15 @@
  * somebody's entire twenty hours, which is a lot of machinery to stop a stranger from
  * pretending they finished the game. The things that ARE worth cheating for — trading and
  * battling — live in the Sesh, where the server holds the buds.
+ *
+ * ONE EXCEPTION, and it's the reason `finished` no longer appears in `InProfile`: the client
+ * used to send that boolean and this file wrote it down. A wrong name at the top of a board
+ * is survivable; a wrong name in a list something is later paid out against is not. It now
+ * comes from `services/progress.ts`, which the client cannot write to directly. Everything
+ * else on this row is still the player's own word and still doesn't matter.
  */
 import { neon } from "@neondatabase/serverless";
+import { hasFinished } from "./progress";
 
 const url = process.env.ACCOUNTS_DATABASE_URL || process.env.DATABASE_URL;
 const sql = url ? neon(url) : null;
@@ -22,16 +29,18 @@ const int = (v: unknown, hi: number) => {
 
 export interface InProfile {
   props?: unknown; legends?: unknown; dex?: unknown;
-  bestGrade?: unknown; smoke?: unknown; minutes?: unknown; finished?: unknown;
+  bestGrade?: unknown; smoke?: unknown; minutes?: unknown;
 }
 
 export async function putProfile(accountId: string, p: InProfile): Promise<void> {
   if (!sql) return;
+  // Not from `p`. Whatever the client sent about finishing is ignored on the way past.
+  const finished = await hasFinished(accountId);
   await sql`
     insert into cb_profiles (account_id, props, legends, dex, best_grade, smoke, minutes, finished, updated_at)
     values (${accountId}, ${int(p.props, 8)}, ${int(p.legends, 8)}, ${int(p.dex, 383)},
             ${int(p.bestGrade, 100)}, ${int(p.smoke, 1e12)}, ${int(p.minutes, 100000)},
-            ${p.finished === true}, now())
+            ${finished}, now())
     on conflict (account_id) do update set
       props = excluded.props, legends = excluded.legends, dex = excluded.dex,
       best_grade = excluded.best_grade, smoke = excluded.smoke,

@@ -7,6 +7,7 @@ import {
 import {
   issueNonce, messageFor, linkWallet, unlinkWallet, refreshWallet, walletOf,
 } from "../services/wallet";
+import { recordMilestones, completionOf } from "../services/progress";
 
 const router = Router();
 
@@ -77,6 +78,36 @@ router.put("/save", rateLimit(30, 400), guarded(async (req, res) => {
   const out = await putSave(me.id, (req.body as { blob?: unknown }).blob);
   if (!out.ok) { res.status(400).json({ error: out.why }); return; }
   res.json({ ok: true });
+}));
+
+/* ── progress: the server's own record of the playthrough ────────── */
+
+/**
+ * The client reports what it DID — never that it finished. There is no "finished" field to
+ * send and no endpoint that takes one: completion is derived in `services/progress.ts` from
+ * the whole required set being present, each row stamped with this server's clock.
+ *
+ * The limit is generous because a milestone is cheap and losing one costs a real player their
+ * proof; the write is idempotent, so a client that resends its whole set every sync — which
+ * is exactly what it does — costs nothing but a no-op insert.
+ */
+router.post("/milestone", rateLimit(30, 300), guarded(async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  const b = req.body as { keys?: unknown; minutes?: unknown };
+  const out = await recordMilestones(me.id, b.keys, b.minutes);
+  res.json({ recorded: out.recorded, completion: out.completion });
+}));
+
+/**
+ * The single read-only truth about a finished game. `rank` is the Nth player to finish; it is
+ * recorded from the first completion onwards even though nothing consumes it yet, because it
+ * is the one thing here that cannot be worked out after the fact.
+ */
+router.get("/completion", rateLimit(60, 600), guarded(async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  res.json(await completionOf(me.id));
 }));
 
 /* ── wallet: optional, read-only, never custodial ───────────────── */
