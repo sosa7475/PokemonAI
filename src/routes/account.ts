@@ -40,7 +40,11 @@ router.post("/register", rateLimit(10, 50), guarded(async (req, res) => {
   }
 }));
 
-router.post("/login", rateLimit(6, 40), guarded(async (req, res) => {
+// 6/min was too tight for an honest player: two typos and a retry and they are locked out
+// with "Slow down", which is indistinguishable from "this game will not let me in". Per-
+// account lockout after repeated failures is the real brute-force defence and it is
+// untouched — this limit only needs to stop a flood, not police somebody's memory.
+router.post("/login", rateLimit(20, 120), guarded(async (req, res) => {
   try {
     const body = req.body as { username?: unknown; password?: unknown };
     const u = typeof body.username === "string" ? body.username : "";
