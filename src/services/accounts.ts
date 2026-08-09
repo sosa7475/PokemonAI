@@ -211,3 +211,75 @@ export async function getSave(accountId: string): Promise<{ blob: string; update
   if (!rows.length) return null;
   return { blob: rows[0].blob as string, updatedAt: String(rows[0].updated_at) };
 }
+
+/* ── PASSWORD RESET ──────────────────────────────────────────────────────────────────────
+ * Sam forgot his own password on day four, which is the fastest possible demonstration that
+ * "you can never get back in" is not an acceptable answer for a game people put twenty hours
+ * into.
+ *
+ * The token is random, single-use, short-lived, and stored HASHED — same treatment as a
+ * session token, for the same reason: a leaked table must not hand anybody a working reset
+ * link. Redeeming one kills every other outstanding token for that account and every live
+ * session, so a reset also boots whoever might already be in there.
+ */
+const RESET_MINUTES = 45;
+
+/** Mint a reset token. Returns the RAW token — the only time it exists in readable form. */
+export async function createReset(accountId: string): Promise<string> {
+  const token = newToken();
+  await sql!`insert into cb_password_resets (account_id, token_hash, expires_at)
+             values (${accountId}, ${sha(token)}, now() + make_interval(mins => ${RESET_MINUTES}))`;
+  return token;
+}
+
+/**
+ * Look somebody up for a reset. Callers must NOT tell the world whether this found anything —
+ * "no account on that email" is a free membership oracle for anyone who wants to know who
+ * plays. The route answers identically either way.
+ */
+export async function findForReset(identifier: string): Promise<{ id: string; username: string; email: string | null } | null> {
+  if (!sql) return null;
+  const mail = checkEmail(identifier);
+  const key = checkUsername(identifier);
+  if (!mail && !key) return null;
+  const rows = mail
+    ? await sql`select id, username, email from cb_accounts where email = ${mail} limit 1`
+    : await sql`select id, username, email from cb_accounts where username_key = ${key} limit 1`;
+  return rows.length ? (rows[0] as { id: string; username: string; email: string | null }) : null;
+}
+
+export async function consumeReset(token: string, newPassword: string): Promise<
+  { ok: true; username: string } | { ok: false; why: string }
+> {
+  if (!sql) return { ok: false, why: "Accounts aren't set up on this server." };
+  const pw = checkPassword(newPassword);
+  if (!pw) return { ok: false, why: "Passwords need to be at least 8 characters." };
+
+  const rows = await sql`
+    select r.id, r.account_id, a.username
+    from cb_password_resets r join cb_accounts a on a.id = r.account_id
+    where r.token_hash = ${sha(token)} and r.used_at is null and r.expires_at > now() limit 1`;
+  if (!rows.length) return { ok: false, why: "That link has expired or already been used." };
+  const row = rows[0] as { id: string; account_id: string; username: string };
+
+  const hash = await hashPassword(pw);
+  await sql`update cb_accounts set pw_hash = ${hash}, failed_logins = 0, locked_until = null
+            where id = ${row.account_id}`;
+  await sql`update cb_password_resets set used_at = now() where id = ${row.id}`;
+  // burn the rest, and every existing session — a reset should end anybody else's access too
+  await sql`update cb_password_resets set used_at = now()
+            where account_id = ${row.account_id} and used_at is null`;
+  await sql`delete from cb_sessions where account_id = ${row.account_id}`;
+  return { ok: true, username: row.username };
+}
+
+/** Attach an email to an account that has none, so it stops being unrecoverable. */
+export async function setEmail(accountId: string, email: string): Promise<{ ok: true } | { ok: false; why: string }> {
+  if (!sql) return { ok: false, why: "Accounts aren't set up on this server." };
+  const mail = checkEmail(email);
+  if (!mail) return { ok: false, why: "That email doesn't look right." };
+  const dupe = await sql`select 1 from cb_accounts where email = ${mail} and id <> ${accountId} limit 1`;
+  if (dupe.length) return { ok: false, why: "There's already an account on that email." };
+  await sql`update cb_accounts set email = ${mail} where id = ${accountId}`;
+  return { ok: true };
+}

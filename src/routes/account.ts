@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { rateLimit, str, LIMITS, guarded } from "../middleware/guard";
 import {
   register, login, logout, whoAmI, putSave, getSave, accountsReady,
+  createReset, findForReset, consumeReset, setEmail,
 } from "../services/accounts";
 import {
   issueNonce, messageFor, linkWallet, unlinkWallet, refreshWallet, walletOf,
@@ -10,6 +11,41 @@ import {
 import { recordMilestones, completionOf } from "../services/progress";
 
 const router = Router();
+
+/** Where the reset link points. Env-overridable so a preview deploy doesn't mail prod links. */
+const GAME_URL = process.env.GAME_URL || "https://cryptobuds-adventure.vercel.app";
+
+/**
+ * Reset mail, via Resend. Deliberately plain: a game that emails you like a bank is a game
+ * that gets marked as spam. If the key is missing or the send fails we log and carry on —
+ * the caller must never learn from timing or status whether an account existed.
+ */
+async function sendResetEmail(to: string, username: string, link: string): Promise<void> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) { console.warn("[reset] no RESEND_API_KEY — link not sent for", username); return; }
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "CryptoBuds <onboarding@resend.dev>",
+        to: [to],
+        subject: "Get back into CryptoBuds",
+        text: [
+          `Somebody asked to reset the password for ${username}.`,
+          "",
+          "Open this to pick a new one. It works once and expires in 45 minutes:",
+          link,
+          "",
+          "If that wasn't you, nothing has changed and you can ignore this.",
+        ].join("\n"),
+      }),
+    });
+    if (!r.ok) console.error("[reset] resend refused:", r.status, (await r.text()).slice(0, 200));
+  } catch (err) {
+    console.error("[reset] send failed", err);
+  }
+}
 
 const bearer = (req: Request): string | undefined => {
   const h = req.headers.authorization ?? "";
@@ -157,6 +193,49 @@ router.get("/wallet", rateLimit(40, 400), guarded(async (req, res) => {
   const me = await whoAmI(bearer(req));
   if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
   res.json(await walletOf(me.id));
+}));
+
+
+/* ── PASSWORD RESET ──────────────────────────────────────────────────────────────────────
+ * Always answers the same thing whether or not the account exists. Anything else is a free
+ * membership oracle: type an email, learn who plays.
+ */
+router.post("/reset-request", rateLimit(5, 20), guarded(async (req, res) => {
+  const SAME = { ok: true, message: "If there's an account with an email on it, a reset link is on its way." };
+  try {
+    const id = str((req.body as { identifier?: unknown }).identifier, 254);
+    if (!id) { res.json(SAME); return; }
+    const who = await findForReset(id);
+    // No account, or an account with no email on it, both end here — and look identical.
+    if (!who?.email) { res.json(SAME); return; }
+    const token = await createReset(who.id);
+    const link = `${GAME_URL}/?reset=${encodeURIComponent(token)}`;
+    await sendResetEmail(who.email, who.username, link);
+    res.json(SAME);
+  } catch (err) {
+    console.error("[account:reset-request]", err);
+    res.json(SAME);   // even a failure must not leak whether the account was real
+  }
+}));
+
+router.post("/reset", rateLimit(10, 40), guarded(async (req, res) => {
+  const b = req.body as { token?: unknown; password?: unknown };
+  const t = typeof b.token === "string" ? b.token : "";
+  const p = typeof b.password === "string" ? b.password : "";
+  const out = await consumeReset(t, p);
+  if (!out.ok) { res.status(400).json({ error: out.why }); return; }
+  res.json({ ok: true, username: out.username });
+}));
+
+/** Attach an email to your own account — the fix for every run made before we asked for one. */
+router.post("/email", rateLimit(10, 40), guarded(async (req, res) => {
+  const me = await whoAmI(bearer(req));
+  if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
+  const e = str((req.body as { email?: unknown }).email, 254);
+  if (!e) { res.status(400).json({ error: "Pick an email." }); return; }
+  const out = await setEmail(me.id, e);
+  if (!out.ok) { res.status(400).json({ error: out.why }); return; }
+  res.json({ ok: true });
 }));
 
 export default router;
