@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# .env alone does NOT match .env.production — a pulled Vercel env carrying the database
+# URL, ADMIN_KEY and the OpenAI key got committed because of exactly that gap.
 .env
+.env.*
+!.env.example
 *.js.map
 .vercel
