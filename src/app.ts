@@ -5,6 +5,7 @@ import npcRoutes from "./routes/npc";
 import accountRoutes from "./routes/account";
 import metricsRoutes from "./routes/metrics";
 import seshRoutes from "./routes/sesh";
+import leadsRoutes from "./routes/leads";
 import { hasDb } from "./db";
 
 const app = express();
@@ -35,6 +36,7 @@ app.use("/npc", npcRoutes);
 app.use("/account", accountRoutes);
 app.use("/metrics", metricsRoutes);
 app.use("/sesh", seshRoutes);
+app.use("/leads", leadsRoutes);
 
 /** Last line of defence: anything that escapes a route becomes a 500, never a hung socket. */
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
