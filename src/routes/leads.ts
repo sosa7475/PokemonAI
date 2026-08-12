@@ -14,6 +14,7 @@
 import { Router } from "express";
 import { rateLimit, str, guarded } from "../middleware/guard";
 import { neon } from "@neondatabase/serverless";
+import { notifyAdmin } from "../services/notify";
 
 const url = process.env.ACCOUNTS_DATABASE_URL || process.env.DATABASE_URL;
 const sql = url ? neon(url) : null;
@@ -34,8 +35,20 @@ router.post("/subscribe", rateLimit(10, 60), guarded(async (req, res) => {
   if (!sql) { res.json(SAME); return; }
   const source = str(b.source, 40) ?? "site";
   try {
-    await sql`insert into cb_leads (email, source) values (${email}, ${source})
-              on conflict (email) do update set unsubbed_at = null`;
+    // `xmax = 0` is true only for a genuine insert, so a repeat submission does not send a
+    // second notification. People double-tap buttons; Sam should not get two emails for it.
+    const rows = await sql`insert into cb_leads (email, source) values (${email}, ${source})
+              on conflict (email) do update set unsubbed_at = null
+              returning (xmax = 0) as is_new`;
+    if (rows[0]?.is_new) {
+      const total = await sql`select count(*)::int as n from cb_leads where unsubbed_at is null`;
+      notifyAdmin(`CryptoBuds whitelist: ${email}`, [
+        `${email} joined the whitelist.`,
+        `Where from: ${source}`,
+        ``,
+        `That's ${total[0]?.n ?? "?"} on the list.`,
+      ]);
+    }
   } catch (err) {
     console.error("[leads:subscribe]", err);
   }

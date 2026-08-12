@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Request } from "express";
 import { rateLimit, str, LIMITS, guarded } from "../middleware/guard";
+import { notifyAdmin } from "../services/notify";
 import {
   register, login, logout, whoAmI, putSave, getSave, accountsReady,
   createReset, findForReset, consumeReset, setEmail,
@@ -28,7 +29,9 @@ async function sendResetEmail(to: string, username: string, link: string): Promi
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "CryptoBuds <onboarding@resend.dev>",
+        // resend.dev is Resend's shared sandbox — rate-limited and poor deliverability. Use the
+        // verified domain. Move to cryptobuds.io once that domain has a slot on the plan.
+        from: process.env.MAIL_FROM || "CryptoBuds <cryptobuds@agilityautomations.com>",
         to: [to],
         subject: "Get back into CryptoBuds",
         text: [
@@ -69,6 +72,12 @@ router.post("/register", rateLimit(10, 50), guarded(async (req, res) => {
     const e = body.email === undefined || body.email === "" ? undefined : str(body.email, 254) ?? "";
     const out = await register(u, p, e);
     if (!out.ok) { res.status(400).json({ error: out.why }); return; }
+    // A new player is the number Sam actually watches. Fire and forget — a mail provider
+    // having a bad second must never be why somebody cannot create an account.
+    notifyAdmin(`CryptoBuds: ${out.account.username} started playing`, [
+      `${out.account.username} just created an account.`,
+      e ? `Email on file: yes` : `Email on file: no (cannot recover this account)`,
+    ]);
     res.json({ token: out.token, account: out.account });
   } catch (err) {
     console.error("[account:register]", err);
