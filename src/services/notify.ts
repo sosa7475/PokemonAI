@@ -38,4 +38,35 @@ export function notifyAdmin(subject: string, lines: string[]): void {
   void send(ADMIN, subject, lines.join("\n"));
 }
 
+/**
+ * The password-reset mail. Lives here with everything else that sends, so moving to a
+ * different Resend account is two environment variables and no code.
+ *
+ * Deliberately plain text: a game that emails you like a bank gets marked as spam.
+ */
+export async function sendResetEmail(to: string, username: string, link: string): Promise<void> {
+  await send(to, "Get back into CryptoBuds", [
+    `Somebody asked to reset the password for ${username}.`,
+    "",
+    "Open this to pick a new one. It works once and expires in 45 minutes:",
+    link,
+    "",
+    "If that wasn't you, nothing has changed and you can ignore this.",
+  ].join("\n"));
+}
+
+/**
+ * Is mail actually configured? Reported by /health so a missing key is visible rather than
+ * silent — RESEND_API_KEY was absent from production for days and the only symptom was reset
+ * links that never arrived, because every route answers the same way whether a send worked
+ * or not. Never returns the key itself.
+ */
+export function mailStatus() {
+  return {
+    configured: Boolean(KEY),
+    from: KEY ? FROM : null,
+    adminNotifications: Boolean(ADMIN),
+  };
+}
+
 export const mail = { send };

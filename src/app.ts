@@ -6,6 +6,7 @@ import accountRoutes from "./routes/account";
 import metricsRoutes from "./routes/metrics";
 import seshRoutes from "./routes/sesh";
 import leadsRoutes from "./routes/leads";
+import { mailStatus } from "./services/notify";
 import { hasDb } from "./db";
 
 const app = express();
@@ -29,7 +30,7 @@ app.use((req, res, next) => {
 });
 
 app.get("/", (_req, res) => res.json({ name: "CryptoBuds AI-NPC API", memory: hasDb ? "on" : "off" }));
-app.get("/health", (_req, res) => res.json({ status: "ok", memory: hasDb ? "on" : "off" }));
+app.get("/health", (_req, res) => res.json({ status: "ok", memory: hasDb ? "on" : "off", mail: mailStatus() }));
 
 app.use("/session", sessionRoutes);
 app.use("/npc", npcRoutes);

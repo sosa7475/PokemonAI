@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Request } from "express";
 import { rateLimit, str, LIMITS, guarded } from "../middleware/guard";
-import { notifyAdmin } from "../services/notify";
+import { notifyAdmin, sendResetEmail } from "../services/notify";
 import {
   register, login, logout, whoAmI, putSave, getSave, accountsReady,
   createReset, findForReset, consumeReset, setEmail,
@@ -14,41 +14,8 @@ import { recordMilestones, completionOf } from "../services/progress";
 const router = Router();
 
 /** Where the reset link points. Env-overridable so a preview deploy doesn't mail prod links. */
-const GAME_URL = process.env.GAME_URL || "https://cryptobuds-adventure.vercel.app";
+const GAME_URL = process.env.GAME_URL || "https://www.cryptobuds.world";
 
-/**
- * Reset mail, via Resend. Deliberately plain: a game that emails you like a bank is a game
- * that gets marked as spam. If the key is missing or the send fails we log and carry on —
- * the caller must never learn from timing or status whether an account existed.
- */
-async function sendResetEmail(to: string, username: string, link: string): Promise<void> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) { console.warn("[reset] no RESEND_API_KEY — link not sent for", username); return; }
-  try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        // resend.dev is Resend's shared sandbox — rate-limited and poor deliverability. Use the
-        // verified domain. Move to cryptobuds.io once that domain has a slot on the plan.
-        from: process.env.MAIL_FROM || "CryptoBuds <cryptobuds@agilityautomations.com>",
-        to: [to],
-        subject: "Get back into CryptoBuds",
-        text: [
-          `Somebody asked to reset the password for ${username}.`,
-          "",
-          "Open this to pick a new one. It works once and expires in 45 minutes:",
-          link,
-          "",
-          "If that wasn't you, nothing has changed and you can ignore this.",
-        ].join("\n"),
-      }),
-    });
-    if (!r.ok) console.error("[reset] resend refused:", r.status, (await r.text()).slice(0, 200));
-  } catch (err) {
-    console.error("[reset] send failed", err);
-  }
-}
 
 const bearer = (req: Request): string | undefined => {
   const h = req.headers.authorization ?? "";
