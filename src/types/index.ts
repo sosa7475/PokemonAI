@@ -3,6 +3,10 @@ export interface GameFlags {
   has_surf?: boolean;
   has_fly?: boolean;
   current_town?: string;
+  /** The character's OWN identity, which is not the persona's — five personas cover 301 buds. */
+  npc_name?: string;
+  npc_place?: string;
+  act?: number;
   [key: string]: unknown;
 }
 
