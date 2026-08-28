@@ -73,8 +73,8 @@ function resetHtml(username: string, link: string): string {
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e4dfcc;border-radius:16px;overflow:hidden;">
 
-        <tr><td align="center" style="background:#f4f0e3;padding:26px 28px 18px;border-bottom:3px solid #ff7a1a;">
-          <img src="https://www.cryptobuds.io/email/logo-light.png" width="240" alt="CRYPTOBUDS" style="display:block;border:0;width:240px;max-width:74%;height:auto;">
+        <tr><td align="center" style="background:#ffffff;padding:28px 28px 20px;border-bottom:3px solid #ff7a1a;">
+          <img src="https://www.cryptobuds.io/email/logo-white.png" width="240" alt="CRYPTOBUDS" style="display:block;border:0;width:240px;max-width:74%;height:auto;">
           <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.26em;color:#ff7a1a;text-transform:uppercase;padding-top:10px;font-weight:700;">The Cannaverse</div>
         </td></tr>
 
