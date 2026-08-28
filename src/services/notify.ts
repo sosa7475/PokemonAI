@@ -67,21 +67,21 @@ function resetHtml(username: string, link: string): string {
      unreliable across clients, and the wordmark stays behind it as alt text so a blocked
      image degrades to words rather than a grey box. */
   return `<!doctype html>
-<html><body style="margin:0;padding:0;background:#0a0d07;">
+<html><body style="margin:0;padding:0;background:#f4f0e3;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Pick a new password for ${u}. The link works once and expires in 45 minutes.</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0d07;padding:32px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f0e3;padding:32px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#12160d;border:1px solid #2a3320;border-radius:16px;overflow:hidden;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e4dfcc;border-radius:16px;overflow:hidden;">
 
-        <tr><td align="center" style="background:#0a0d07;padding:26px 28px 20px;border-bottom:2px solid #ff7a1a;">
-          <img src="https://www.cryptobuds.io/email/logo.png" width="240" alt="CRYPTOBUDS" style="display:block;border:0;width:240px;max-width:74%;height:auto;">
-          <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.26em;color:#ff7a1a;text-transform:uppercase;padding-top:12px;font-weight:700;">The Cannaverse</div>
+        <tr><td align="center" style="background:#f4f0e3;padding:26px 28px 18px;border-bottom:3px solid #ff7a1a;">
+          <img src="https://www.cryptobuds.io/email/logo-light.png" width="240" alt="CRYPTOBUDS" style="display:block;border:0;width:240px;max-width:74%;height:auto;">
+          <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:.26em;color:#ff7a1a;text-transform:uppercase;padding-top:10px;font-weight:700;">The Cannaverse</div>
         </td></tr>
 
         <tr><td style="padding:32px 28px 8px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-          <h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:#ffffff;font-weight:800;">Let's get you back in</h1>
-          <p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#ffffff;">
-            Somebody asked to reset the password for <strong style="color:#57c93f;">${u}</strong>.
+          <h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:#0a0d07;font-weight:800;">Let's get you back in</h1>
+          <p style="margin:0 0 22px;font-size:15px;line-height:1.65;color:#33372c;">
+            Somebody asked to reset the password for <strong style="color:#3a9a2b;">${u}</strong>.
             Pick a new one and your buds will be right where you left them.
           </p>
         </td></tr>
@@ -93,18 +93,18 @@ function resetHtml(username: string, link: string): string {
         </td></tr>
 
         <tr><td style="padding:0 28px 26px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-          <p style="margin:0 0 6px;font-size:12px;color:#8f9a83;">Button not working? Paste this in:</p>
-          <p style="margin:0;font-size:12px;line-height:1.55;word-break:break-all;"><a href="${l}" style="color:#57c93f;text-decoration:underline;">${l}</a></p>
+          <p style="margin:0 0 6px;font-size:12px;color:#8a8578;">Button not working? Paste this in:</p>
+          <p style="margin:0;font-size:12px;line-height:1.55;word-break:break-all;"><a href="${l}" style="color:#3a9a2b;text-decoration:underline;">${l}</a></p>
         </td></tr>
 
         <tr><td style="padding:0 28px 28px;">
-          <div style="border-top:1px solid #2a3320;padding-top:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.65;color:#ffffff;">
-            The link works <strong style="color:#ff7a1a;">once</strong> and expires in <strong style="color:#ff7a1a;">45 minutes</strong>.<br>
+          <div style="border-top:1px solid #eee8d6;padding-top:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.65;color:#33372c;">
+            The link works <strong style="color:#d9600e;">once</strong> and expires in <strong style="color:#d9600e;">45 minutes</strong>.<br>
             If this wasn't you, nothing has changed and you can ignore it — your password stays as it is.
           </div>
         </td></tr>
 
-        <tr><td style="background:#0a0d07;padding:18px 28px;border-top:1px solid #2a3320;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:#7c8672;">
+        <tr><td style="background:#f4f0e3;padding:18px 28px;border-top:1px solid #e4dfcc;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11px;line-height:1.6;color:#8a8578;">
           We only ever email you about your account. We will never ask for your password, and nobody from CryptoBuds will ever ask for a seed phrase.
         </td></tr>
 
