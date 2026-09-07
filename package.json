@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "seed": "tsx src/db/seed.ts",
-    "seed:cryptobuds": "tsx src/db/seed-cryptobuds.ts"
+    "seed:cryptobuds": "tsx src/db/seed-cryptobuds.ts",
+    "test:wallet": "esbuild test/wallet.ts --bundle --platform=node --format=esm --outfile=node_modules/.wallet.mjs --log-level=error && node node_modules/.wallet.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

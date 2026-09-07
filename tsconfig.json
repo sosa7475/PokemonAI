@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],   // viem/ox reference DOM types in shipped .ts source
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,

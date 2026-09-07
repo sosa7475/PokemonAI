@@ -7,7 +7,7 @@ import {
   createReset, findForReset, consumeReset, setEmail,
 } from "../services/accounts";
 import {
-  issueNonce, messageFor, linkWallet, unlinkWallet, refreshWallet, walletOf,
+  issueChallenge, linkWallet, unlinkWallet, refreshWallet, walletOf,
 } from "../services/wallet";
 import { recordMilestones, completionOf } from "../services/progress";
 
@@ -129,23 +129,32 @@ router.get("/completion", rateLimit(60, 600), guarded(async (req, res) => {
 }));
 
 /* ── wallet: optional, read-only, never custodial ───────────────── */
-router.post("/wallet/nonce", rateLimit(20, 200), guarded(async (req, res) => {
+/* The challenge names the origin asking for it, and the server decides whether that origin
+   is allowed to ask — see services/wallet.ts for the attack that makes this necessary. */
+router.post("/wallet/challenge", rateLimit(20, 200), guarded(async (req, res) => {
   const me = await whoAmI(bearer(req));
   if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
-  const addr = str((req.body as { address?: unknown }).address, 60);
-  const nonce = addr ? await issueNonce(me.id, addr) : null;
-  if (!nonce || !addr) { res.status(400).json({ error: "That isn't a valid address." }); return; }
-  res.json({ nonce, message: messageFor(addr, nonce) });
+  const b = req.body as { address?: unknown; domain?: unknown; uri?: unknown; chainId?: unknown };
+  const addr = str(b.address, 60);
+  const domain = str(b.domain, 120);
+  const uri = str(b.uri, 300);
+  const chainId = typeof b.chainId === "number" ? b.chainId : 0;
+  if (!addr || !domain || !uri) { res.status(400).json({ error: "Bad request." }); return; }
+  const out = await issueChallenge(me.id, addr, domain, uri, chainId);
+  if (!out.ok) { res.status(400).json({ error: out.why }); return; }
+  res.json({ nonce: out.nonce, message: out.message });
 }));
 
 router.post("/wallet/link", rateLimit(10, 80), guarded(async (req, res) => {
   const me = await whoAmI(bearer(req));
   if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
-  const b = req.body as { address?: unknown; signature?: unknown };
+  const b = req.body as { address?: unknown; message?: unknown; signature?: unknown };
   const addr = str(b.address, 60);
+  const message = typeof b.message === "string" ? b.message : "";
   const sig = typeof b.signature === "string" ? b.signature : "";
   if (!addr) { res.status(400).json({ error: "That isn't a valid address." }); return; }
-  const out = await linkWallet(me.id, addr, sig);
+  const ip = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim();
+  const out = await linkWallet(me.id, addr, message, sig, ip);
   if (!out.ok) { res.status(400).json({ error: out.why }); return; }
   res.json({ address: out.address, tokens: out.tokens });
 }));
@@ -161,7 +170,7 @@ router.post("/wallet/refresh", rateLimit(10, 80), guarded(async (req, res) => {
 router.post("/wallet/unlink", rateLimit(10, 80), guarded(async (req, res) => {
   const me = await whoAmI(bearer(req));
   if (!me) { res.status(401).json({ error: "Not signed in." }); return; }
-  await unlinkWallet(me.id);
+  await unlinkWallet(me.id, (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim());
   res.json({ ok: true });
 }));
 
